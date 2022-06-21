@@ -11,19 +11,25 @@ end Macroni
 
 class Macroni[T <: AnyKind: Type](using q: Quotes):
   import q.reflect.*
-  def lolli =
-    val x = TypeRepr.of[T]
 
-    Expr(
-      (x.dealias.widen, x.classSymbol) match
-        case (TypeRef(t, name), Some(sym)) =>
-          s"""TypeRef $t $name 
+  def lolli: Expr[String] = Expr(lolRepr(TypeRepr.of[T]))
+
+  private def lolRepr(x: TypeRepr): String =
+    (x.dealias.widen, x.classSymbol) match
+      case (TypeRef(t, name), Some(sym)) =>
+        s"""TypeRef $t $name 
              |
              |${lolSymbol(sym)}""".stripMargin
 
-        case _ =>
-          s"Macroni $x"
-    )
+      case (TypeLambda(params, bounds, AppliedType(inner, apps)), _) =>
+        val recur = lolRepr(inner)
+
+        s"""TypeLambda $params $apps
+             |
+             |$recur""".stripMargin
+
+      case _ =>
+        s"Macroni $x"
 
   private def lolSymbol(s: Symbol): String =
     s"""
