@@ -4,9 +4,11 @@ import scala.annotation.experimental
 import scala.language.reflectiveCalls
 
 object Macroni:
-  transparent inline def lol[T <: AnyKind]: String = ${ lolMacro[T] }
+  transparent inline def lol[T <: AnyKind]: String = lolVec[T].mkString("\n")
 
-  def lolMacro[T <: AnyKind: Type](using Quotes): Expr[String] =
+  inline def lolVec[T <: AnyKind]: Vector[String] = ${ lolMacro[T] }
+
+  def lolMacro[T <: AnyKind: Type](using Quotes): Expr[Vector[String]] =
     Macroni[T].lolli
 
 end Macroni
@@ -14,7 +16,11 @@ end Macroni
 class Macroni[T <: AnyKind: Type](using q: Quotes):
   import q.reflect.*
 
-  def lolli: Expr[String] = Expr(lolRepr(TypeRepr.of[T]))
+  def lolli: Expr[Vector[String]] =
+    val repr = lolRepr(TypeRepr.of[T]).split("\n").map(Expr(_))
+    val args = Varargs(repr)
+
+    '{ Vector($args: _*) }
 
   private def checkApps(params: List[String], apps: List[TypeRepr]): Boolean =
     apps.collect { case ParamRef(_, i) => i } == params.indices
@@ -55,15 +61,29 @@ class Macroni[T <: AnyKind: Type](using q: Quotes):
     then lolValDecl(s)
     else s.toString
 
-  private def lolDefDecl(s: Symbol): String =
-    val sign = s.signature
-    val Signature(params, res) = sign
-    s""" DEF $s ${s.flags}
-       | SIGNATURE: $sign
-       | PARAMS ${params.mkString(",")}
-       | RESULT $res
-       | FLAGS: ${getFlags(s.flags).mkString(",")}
-       |""".stripMargin
+  private def lolDefDecl(s: Symbol): String = s.tree match
+    case DefDef(name, params, tpe, body) =>
+      val res = tpe.tpe.show
+      val sign = s.signature
+      s""" DEF $s ${s.flags}
+        | SIGNATURE: $sign
+        | PARAMS :${lolParams(params)}
+        | RESULT $res
+        | FLAGS: ${getFlags(s.flags).mkString(",")}
+        |""".stripMargin
+
+  private def lolParams(params: List[ParamClause]): String =
+    params.map(_.params.map(lolParam).mkString("\n  ", "\n  ", "")).mkString("\n  ~~~~~~~~~")
+
+  private def lolParam(param: ValDef | TypeDef): String = param match
+    case ValDef(name, tr, _) =>
+      val t = tr.tpe.show
+      s"$name : $t"
+    case TypeDef(name, tr) =>
+      tr match
+        case tt: TypeTree =>
+          val t = tt.tpe.show
+          s"ANON $t"
 
   private def lolValDecl(s: Symbol): String =
     s""" VAL $s ${s.flags}

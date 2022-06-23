@@ -16,9 +16,11 @@ trait Bar[A[_]]:
   def u(s: String): Int
   def b(uu: List[Int]): A[String]
 
-@nowarn
-@main def MacroniTest() =
 
-  println(Macroni.lol[Foo])
+class MacroniTest extends munit.FunSuite:
+  test("lolly"){
 
-  println(Macroni.lol[Bar])
+    println(Macroni.lol[Foo])
+
+    println(Macroni.lol[Bar])
+  }
